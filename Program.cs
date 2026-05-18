@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentSystem.Application.Dtos;
 using PaymentSystem.Application.Interfaces;
@@ -12,8 +13,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
 
-builder.Services.AddOpenApi();
-builder.Services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<InMemoryPaymentRepository>();
+builder.Services.AddSingleton<IPaymentRepository>(sp =>
+    new CachedPaymentRepository(sp.GetRequiredService<InMemoryPaymentRepository>(), sp.GetRequiredService<IMemoryCache>()));
 builder.Services.AddSingleton<IPaymentProcessor, PaymentProcessor>();
 
 var app = builder.Build();
