@@ -1,0 +1,24 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "outDir": "./out-tsc",
+    "sourceMap": true,
+    "declaration": false,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "module": "es2020",
+    "moduleResolution": "bundler",
+    "importHelpers": true,
+    "target": "es2020",
+    "typeRoots": ["node_modules/@types"],
+    "lib": ["es2020", "dom"],
+    "skipLibCheck": true
+  },
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictInputTypes": true,
+    "strictOutputEventTypes": true,
+    "strictTemplates": true
+  }
+}

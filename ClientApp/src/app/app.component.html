@@ -1,0 +1,100 @@
+<div class="container">
+  <header>
+    <h1>Payment Management</h1>
+    <p>Use this Angular client to create, read, update, delete, and refund payments.</p>
+  </header>
+
+  <section>
+    <h2>Create Payment</h2>
+    <form (ngSubmit)="createPayment()">
+      <label>Amount</label>
+      <input type="number" [(ngModel)]="createModel.amount" name="amount" required min="0.01" step="0.01" />
+
+      <label>Currency</label>
+      <input type="text" [(ngModel)]="createModel.currency" name="currency" required />
+
+      <label>Method</label>
+      <select [(ngModel)]="createModel.method" name="method">
+        <option value="Card">Card</option>
+        <option value="BankTransfer">BankTransfer</option>
+        <option value="DigitalWallet">DigitalWallet</option>
+      </select>
+
+      <label>Description</label>
+      <textarea [(ngModel)]="createModel.description" name="description"></textarea>
+
+      <button type="submit">Create</button>
+    </form>
+  </section>
+
+  <section *ngIf="selectedPaymentId" style="margin-top: 1.5rem;">
+    <h2>Edit Payment</h2>
+    <form (ngSubmit)="savePayment()">
+      <label>Amount</label>
+      <input type="number" [(ngModel)]="editModel.amount" name="editAmount" required min="0.01" step="0.01" />
+
+      <label>Currency</label>
+      <input type="text" [(ngModel)]="editModel.currency" name="editCurrency" required />
+
+      <label>Method</label>
+      <select [(ngModel)]="editModel.method" name="editMethod">
+        <option value="Card">Card</option>
+        <option value="BankTransfer">BankTransfer</option>
+        <option value="DigitalWallet">DigitalWallet</option>
+      </select>
+
+      <label>Description</label>
+      <textarea [(ngModel)]="editModel.description" name="editDescription"></textarea>
+
+      <div>
+        <button type="submit">Save</button>
+        <button type="button" class="secondary" (click)="cancelEdit()">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <section style="margin-top: 1.5rem;">
+    <h2>Payments</h2>
+    <p *ngIf="loading">Loading payments…</p>
+    <p *ngIf="errorMessage" style="color: #dc3545;">{{ errorMessage }}</p>
+
+    <table *ngIf="payments.length > 0">
+      <thead>
+        <tr>
+          <th>Id</th>
+          <th>Amount</th>
+          <th>Currency</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Description</th>
+          <th>Reference</th>
+          <th>Processed</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let payment of payments">
+          <td>{{ payment.id }}</td>
+          <td>{{ payment.amount | number:'1.2-2' }}</td>
+          <td>{{ payment.currency }}</td>
+          <td>{{ payment.method }}</td>
+          <td><span class="badge {{ payment.status }}">{{ payment.status }}</span></td>
+          <td>{{ payment.description }}</td>
+          <td>{{ payment.reference }}</td>
+          <td>{{ payment.processedAt || '—' }}</td>
+          <td>
+            <button (click)="editPayment(payment)">Edit</button>
+            <button class="secondary" (click)="deletePayment(payment.id)">Delete</button>
+            <button class="secondary" (click)="refundPayment(payment.id)">Refund</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p *ngIf="!loading && payments.length === 0">No payments found yet.</p>
+  </section>
+
+  <section style="margin-top: 1.5rem;">
+    <h2>Refund Reason</h2>
+    <input type="text" [(ngModel)]="refundReason" placeholder="Refund reason" />
+  </section>
+</div>

@@ -60,4 +60,17 @@ public sealed class InMemoryPaymentRepository : IPaymentRepository
             _lock.Release();
         }
     }
+
+    public async Task DeleteAsync(Guid id)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            _store.Remove(id);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
 }

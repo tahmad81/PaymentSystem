@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PaymentSystem.Application.Dtos;
 using PaymentSystem.Application.Interfaces;
 using PaymentSystem.Application.Services;
@@ -8,87 +11,77 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
 
 builder.Services.AddMemoryCache();
-builder.Services.AddSingleton<InMemoryPaymentRepository>();
-builder.Services.AddSingleton<IPaymentRepository>(sp =>
-    new CachedPaymentRepository(sp.GetRequiredService<InMemoryPaymentRepository>(), sp.GetRequiredService<IMemoryCache>()));
-builder.Services.AddSingleton<IPaymentProcessor, PaymentProcessor>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddDbContext<PaymentDbContext>(options =>
+{
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=payments.db");
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+    }
+});
+
+builder.Services.AddScoped<EfPaymentRepository>();
+builder.Services.AddScoped<IPaymentRepository>(sp =>
+    new CachedPaymentRepository(sp.GetRequiredService<EfPaymentRepository>(), sp.GetRequiredService<IMemoryCache>()));
+builder.Services.AddScoped<IPaymentProcessor, PaymentProcessor>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
+        if (exceptionHandlerFeature?.Error is not null)
+        {
+            logger.LogError(exceptionHandlerFeature.Error, "Unhandled exception occurred.");
+        }
+
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new ErrorResponse("An unexpected error occurred."));
+    });
+});
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+    dbContext.Database.EnsureCreated();
+}
+
+app.UseCors("AllowFrontend");
+app.UseRouting();
+app.UseAuthorization();
+app.MapControllers();
 
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
-
-var payments = app.MapGroup("/payments");
-
-payments.MapPost("/", async (HttpContext context) =>
-{
-    var processor = context.RequestServices.GetRequiredService<IPaymentProcessor>();
-    var request = await context.Request.ReadFromJsonAsync<PaymentRequest>();
-
-    if (request is null)
-    {
-        return (IResult)TypedResults.BadRequest(new ErrorResponse("Invalid payment payload."));
-    }
-
-    try
-    {
-        var payment = await processor.ProcessPaymentAsync(request);
-        return TypedResults.Created($"/payments/{payment.Id}", PaymentResponse.From(payment));
-    }
-    catch (ArgumentException ex)
-    {
-        return TypedResults.BadRequest(new ErrorResponse(ex.Message));
-    }
-});
-
-payments.MapGet("/", async (HttpContext context) =>
-{
-    var processor = context.RequestServices.GetRequiredService<IPaymentProcessor>();
-    var paymentsToReturn = await processor.ListPaymentsAsync();
-    return TypedResults.Ok(paymentsToReturn.Select(PaymentResponse.From));
-});
-
-payments.MapGet("/{id}", async (HttpContext context) =>
-{
-    var processor = context.RequestServices.GetRequiredService<IPaymentProcessor>();
-    if (!Guid.TryParse(context.Request.RouteValues["id"]?.ToString(), out var id))
-    {
-        return (IResult)TypedResults.BadRequest(new ErrorResponse("Invalid payment id."));
-    }
-
-    var payment = await processor.GetPaymentAsync(id);
-    return payment is not null
-        ? TypedResults.Ok(PaymentResponse.From(payment))
-        : TypedResults.NotFound();
-});
-
-payments.MapPost("/{id}/refund", async (HttpContext context) =>
-{
-    var processor = context.RequestServices.GetRequiredService<IPaymentProcessor>();
-    if (!Guid.TryParse(context.Request.RouteValues["id"]?.ToString(), out var id))
-    {
-        return (IResult)TypedResults.BadRequest(new ErrorResponse("Invalid payment id."));
-    }
-
-    var request = await context.Request.ReadFromJsonAsync<RefundRequest>();
-    if (request is null)
-    {
-        return TypedResults.BadRequest(new ErrorResponse("Invalid refund payload."));
-    }
-
-    var payment = await processor.RefundPaymentAsync(id, request.Reason);
-    return payment is not null
-        ? TypedResults.Ok(PaymentResponse.From(payment))
-        : TypedResults.NotFound();
-});
 
 app.Run();
 

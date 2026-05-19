@@ -48,5 +48,12 @@ public sealed class CachedPaymentRepository : IPaymentRepository
         });
     }
 
+    public async Task DeleteAsync(Guid id)
+    {
+        await _inner.DeleteAsync(id);
+        _cache.Remove(AllPaymentsCacheKey);
+        _cache.Remove(GetPaymentCacheKey(id));
+    }
+
     private static string GetPaymentCacheKey(Guid id) => $"payments:{id:N}";
 }

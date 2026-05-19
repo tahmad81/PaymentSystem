@@ -8,4 +8,5 @@ public interface IPaymentRepository
     Task<Payment?> GetAsync(Guid id);
     Task UpdateAsync(Payment payment);
     Task<IReadOnlyCollection<Payment>> ListAsync();
+    Task DeleteAsync(Guid id);
 }
